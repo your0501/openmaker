@@ -32,3 +32,9 @@
     justify-content: left;
     
 }
+
+.App-toolbar {
+  background-color: #ffffff;
+  max-width: fit-content;
+  max-height: fit-content;
+}

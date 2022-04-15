@@ -6,7 +6,7 @@ import Divider from '@mui/material/Divider';
 import Box from '@mui/material/Box';
 
 import * as PIXI from 'pixi.js';
-import CompositeTilemap from '@pixi/tilemap';
+import * as PIXI_Tilemap from '@pixi/tilemap';
 import './App.css';
 
 import CreateNewFolderIcon from '@mui/icons-material/CreateNewFolder'
@@ -23,6 +23,7 @@ import PersonIcon from '@mui/icons-material/Person';
 import AppsIcon from '@mui/icons-material/Apps';
 
 import BrushIcon from '@mui/icons-material/Brush';
+import DeleteIcon from '@mui/icons-material/Delete';
 import SquareIcon from '@mui/icons-material/Square';
 import CircleIcon from '@mui/icons-material/Circle';
 import FormatPaintIcon from '@mui/icons-material/FormatPaint';
@@ -64,8 +65,10 @@ const sprites = {};
 
 let tileset = require("./assets/tileset.png");
 let tileselector = require("./assets/tile_selector.png");
+let emptytile = require("./assets/empty_tile.png");
 loader.add('tileset', tileset);
 loader.add('tileselector', tileselector);
+loader.add('emptytile', emptytile);
 loader.load()
 
 
@@ -90,7 +93,7 @@ loader.onLoad.add((loader, resources) => {
     console.log("loaded");
 }); 
 
-let tilesetSprite, tileSelectorSprite, tileCursorSprite;
+let tilesetSprite, tileSelectorSprite, tileCursorSprite, tilemapSprite;
 loader.onComplete.add((loader, resoueces) => {
     let texture = loader.resources.tileset.texture;
     tilesetSprite = new PIXI.Sprite(texture);
@@ -100,19 +103,25 @@ loader.onComplete.add((loader, resoueces) => {
     tileSelectorSprite = new PIXI.Sprite(texture2);
     app.stage.addChild(tileSelectorSprite);
 
+
+    tilemapSprite = new PIXI_Tilemap.CompositeTilemap();
+    tilemapSprite.tileset = loader.resources.tileset.texture;
+    tilemapSprite.emptytile = loader.resources.emptytile.texture;
+    tilemapSprite.x = 256+32;
+    tilemapSprite.y = 0;
+    app.stage.addChild(tilemapSprite);
+
     tileCursorSprite = new PIXI.Sprite(texture2);
     app.stage.addChild(tileCursorSprite);
 
+
+    
     tileSelectorSprite.x = -32;
     tileCursorSprite.x = -32;
     console.log(loader.resources)
 
-    const tilemapSprite = new PIXI.Sprite.from(document.getElementById('tilemap'));
-    app.stage.addChild(tilemapSprite);
-    tilemapSprite.x = 256 + 16;
-    tilemapSprite.y = 0;
-    console.log(tilemapSprite)
-    //const tilemap = new PIXI.Sprite(tilemapTexture);
+
+    
 }); 
 
 
@@ -121,10 +130,15 @@ let x = 0;
 let y = 0;
 let tileX = 0;
 let tileY = 0;
+let lastClickedTileX = 0;
+let lastClickedTileY = 0;
 let tilesetIndex = 0;
 let pressed = false;
 
-let mapArray = new Array(32 * 32);
+
+
+let mapArray = new Array(16*16).fill(0);
+let tempMapArray = new Array(16*16).fill(0);
 
 const isTilesetArea = function(tileX, tileY) {
     return (0 <= tileX && tileX < 8 && 0 <= tileY && tileY < 16) ? true : false;
@@ -144,37 +158,53 @@ window.addEventListener('mousemove', (e) => {
         if (isMapArea(tileX, tileY)) {
             tileCursorSprite.x = tileX * 32;
             tileCursorSprite.y = tileY * 32;
+
+            let realX = tileX - 9;
+            let realY = tileY;
+            
+            let lastClickedRealX = lastClickedTileX - 9;
+            let lastClickedRealY = lastClickedTileY;
+
             let tool = button_tool;
             if (pressed) {
-                if (tool == 'pen') {
-                    mapArray[tileY * 32 + tileX] = tilesetIndex;
-                } else if (tool == 'square') {
-                    for (let i = 0; i < 32; i++) {
-                        for (let j = 0; j < 32; j++) {
-                            mapArray[tileY * 32 + tileX + i + j * 32] = tilesetIndex;
-                            
+
+                if (tool == 'pen' || tool == 'eraser') {
+                    tempMapArray[realY * 16 + realX] = (tool == 'pen') ? tilesetIndex : 0;
+                    console.log(realY, realX, tempMapArray[realY * 16 + realX])
+                }
+                else if (tool == 'square') {
+                    tempMapArray = mapArray.map((value, index) => value);
+                    let maxI = Math.max(lastClickedRealX, realX);
+                    let minI = Math.min(lastClickedRealX, realX);
+                    let maxJ = Math.max(lastClickedRealY, realY);
+                    let minJ = Math.min(lastClickedRealY, realY);
+                    for (let i = minI; i <= maxI; i++) {
+                        for (let j = minJ; j <= maxJ; j++) {
+                            tempMapArray[j * 16 + i] = tilesetIndex;
                         }
                     }
                 } else if (tool == 'circle') {
-                    for (let i = 0; i < 32; i++) {
-                        for (let j = 0; j < 32; j++) {
-                            if (Math.sqrt(Math.pow(i - 16, 2) + Math.pow(j - 16, 2)) < 16) {
-                                mapArray[tileY * 32 + tileX + i + j * 32] = tilesetIndex;
-                            }
-                        }
-                    }
-                } else if (tool == 'fill') {
-                    let fillColor = mapArray[tileY * 32 + tileX];
-                    for (let i = 0; i < 32; i++) {
-                        for (let j = 0; j < 32; j++) {
-                            if (mapArray[tileY * 32 + tileX + i + j * 32] == fillColor) {
-                                mapArray[tileY * 32 + tileX + i + j * 32] = tilesetIndex;
+                    tempMapArray = mapArray.map((value, index) => value);
+                    let maxI = Math.max(lastClickedRealX, realX);
+                    let minI = Math.min(lastClickedRealX, realX);
+                    let maxJ = Math.max(lastClickedRealY, realY);
+                    let minJ = Math.min(lastClickedRealY, realY);
+                    let long_radius = Math.max(maxI - minI, maxJ - minJ) / 2;
+                    let short_radius = Math.max(maxI - minI, maxJ - minJ) / 2;
+
+                    for (let i = minI; i <= maxI; i++) {
+                        for (let j = minJ; j <= maxJ; j++) {
+                            let x = i - long_radius;
+                            let y = j - short_radius;
+                            if (x ** 2 * long_radius ** 2 + y ** 2 * short_radius ** 2 <= long_radius ** 2 * short_radius ** 2) {
+                                tempMapArray[j * 16 + i] = tilesetIndex;
                             }
                         }
                     }
                 }
-                
 
+
+                window.updateTilemap(tempMapArray)
             }
         } else {
             tileCursorSprite.x = -32;
@@ -183,22 +213,47 @@ window.addEventListener('mousemove', (e) => {
         x = 0;
         y = 0;
     }
-
 });
 
+window.updateTilemap = function(mapArray) {
+    tilemapSprite.clear()
+    for (let j = 0; j < 16; j++) {
+        for (let i = 0; i < 16; i++) {
+            let index = j * 16 + i;
+            if (mapArray[index] != 0) { // 맵 배열이 0이 아닐 때만 그림.
+
+                let tileset_xpos = ((mapArray[index] - 1) % 8) * 32;
+                let tileset_ypos = Math.floor((mapArray[index] - 1) / 8) * 32;
+
+                tilemapSprite.tile(tilemapSprite.tileset, i * 32, j * 32, {
+                    u: tileset_xpos, v: tileset_ypos, tileWidth: 32, tileHeight: 32
+                });
+            } else {
+                tilemapSprite.tile(tilemapSprite.emptytile, i * 32, j * 32);
+            }
+        }
+    }
+}
 window.addEventListener('mousedown', (e) => {
     let canvas = document.getElementById('pixi-canvas')
     if (e.button === 0 && canvas && tileCursorSprite) {
-        console.log(x, y);
+        //console.log(x, y);
         if (isTilesetArea(tileX, tileY)) {
             tileSelectorSprite.x = tileX * 32;
             tileSelectorSprite.y = tileY * 32;
-            tilesetIndex = tileX + tileY * 8;
+            tilesetIndex = tileX + tileY * 8 + 1;
+            console.log(tilesetIndex)
+
         }
 
         if (isMapArea(tileX, tileY)) {
             pressed = true;
         }
+        
+        lastClickedTileX = tileX;
+        lastClickedTileY = tileY;
+        
+        
     }
 });
 
@@ -206,6 +261,8 @@ window.addEventListener('mouseup', (e) => {
     if (e.button === 0) {
         if (isMapArea(tileX, tileY)) {
             pressed = false;
+            mapArray = tempMapArray;
+            window.updateTilemap(mapArray)
         }
     }
 });
@@ -232,6 +289,10 @@ function DrawButtons() {
         >
             <ToggleButton value="pen">
                 <BrushIcon/>
+            </ToggleButton>
+
+            <ToggleButton value="eraser">
+                <DeleteIcon/>
             </ToggleButton>
 
             <ToggleButton value="square">

@@ -116,6 +116,7 @@ loader.onLoad.add((loader, resources) => {
 }); 
 
 let tilesetSprite, tileSelectorSprite, tileCursorSprite, tilemapSprite;
+let tilemapSprite_2, tilemapSprite_3;
 
 loader.onComplete.add((loader, resoueces) => {
     let texture = loader.resources.tileset.texture;
@@ -127,12 +128,28 @@ loader.onComplete.add((loader, resoueces) => {
     app.stage.addChild(tileSelectorSprite);
 
 
-    tilemapSprite = new PIXI_Tilemap.CompositeTilemap();
+    let t = loader.resources.tileset.texture;
+    tilemapSprite = new PIXI_Tilemap.CompositeTilemap(0, t, false);
     tilemapSprite.tileset = loader.resources.tileset.texture;
     tilemapSprite.emptytile = loader.resources.emptytile.texture;
     tilemapSprite.x = 256+32;
     tilemapSprite.y = 0;
+
+    tilemapSprite_2 = new PIXI_Tilemap.CompositeTilemap();
+    tilemapSprite_2.tileset = loader.resources.tileset.texture;
+    tilemapSprite_2.emptytile = loader.resources.emptytile.texture;
+    tilemapSprite_2.x = 256+32;
+    tilemapSprite_2.y = 0;
+
+    tilemapSprite_3 = new PIXI_Tilemap.CompositeTilemap();
+    tilemapSprite_3.tileset = loader.resources.tileset.texture;
+    tilemapSprite_3.emptytile = loader.resources.emptytile.texture;
+    tilemapSprite_3.x = 256+32;
+    tilemapSprite_3.y = 0;
+    
     app.stage.addChild(tilemapSprite);
+    app.stage.addChild(tilemapSprite_2);
+    app.stage.addChild(tilemapSprite_3);
 
     tileCursorSprite = new PIXI.Sprite(texture2);
     app.stage.addChild(tileCursorSprite);
@@ -169,7 +186,10 @@ let tempMapArray = new Array(16*16).fill(0);
 
 class TilemapEditor {
     constructor() {
-        this.mapArray     = new Array(16*16).fill(0); // 맵 배열 
+        this.mapArrays = [this.createNewMap(16, 16), this.createNewMap(16, 16), this.createNewMap(16, 16)];
+        this.tempMapArrays = [this.createNewMap(16, 16), this.createNewMap(16, 16), this.createNewMap(16, 16)];
+        this.mapIndex = 0;
+        this.mapArray     = this.createNewMap(16, 16) // 맵 배열 
         this.tempMapArray = new Array(16*16).fill(0); // 임시 맵 배열 (수정중인 맵 배열)
         this.mapEditorData = {};
         this.tilesetIndex = 0; // 현재 선택하고있는 타일셋 인덱스
@@ -180,14 +200,46 @@ class TilemapEditor {
         this.pressed = false; // 마우스를 누르고 있는지 여부
         this.x = 0; // 마우스 이벤트리스너 x좌표
         this.y = 0; // 마우스 이벤트리스너 y좌표
+        this.tool = "pen"; // 현재 사용중인 도구
+        this.layer = 1; // 현재 사용중인 도구
 
         this._tilemapSprite = tilemapSprite; // 타일맵 스프라이트
         this._tileSelectorSprite = tileSelectorSprite; // 타일선택기 커서 스프라이트
         this._tileCursorSprite = tileCursorSprite; // 타일커서 스프라이트
         this._tilesetSprite = tilesetSprite; // 타일셋 스프라이트
+        this._tilemapSprite_2 = tilemapSprite_2; // 타일맵 스프라이트
+        this._tilemapSprite_3 = tilemapSprite_3; // 타일맵 스프라이트
+        this.tilemapSprites = [this._tilemapSprite, this._tilemapSprite_2, this._tilemapSprite_3];
+
+        this.AlphaFilterArray = [new PIXI.filters.AlphaFilter(0.5)]
 
 
         this.setupEventListerer();
+    }
+
+    createNewMap(xSize, ySize) {
+        return new Array(xSize * ySize).fill(0);
+    }
+
+    setLayer(layer) {
+        switch(layer) {
+            case 'one':
+                this.layer = 0;
+                break;
+            case 'two':
+                this.layer = 1;
+                break;
+            case 'three':
+                this.layer = 2;
+                break;
+            default:
+                this.layer = 0;
+                break;
+        }
+    }
+
+    setTool(tool) {
+        this.tool = tool;
     }
 
     isTileSelectorArea(tileX, tileY) {
@@ -237,35 +289,35 @@ class TilemapEditor {
             let lastClickedRealX = this.lastClickedTileX - 9; // 마지막으로 클릭한 타일의 실제 x좌표
             let lastClickedRealY = this.lastClickedTileY;
 
-            let tool = window.button_tool; // 현재 선택한 툴 / 전역변수 수정 필요.
+            let tool = this.tool; // 현재 선택한 툴 / 전역변수 수정 필요.
             
             let tilesetIndex = this.tilesetIndex
-            let mapArray = this.mapArray;
+            let mapArray = this.mapArrays[this.layer]; // 현재 사용중인 레이어의 맵 배열
 
             if (tool == 'pen' || tool == 'eraser') {
                 if (realX >= 0 && realY >= 0 && realX < 16 && realY < 16) {
-                    this.tempMapArray[realY * 16 + realX] = (tool == 'pen') ? tilesetIndex : 0;
-                    console.log(realY, realX, this.tempMapArray[realY * 16 + realX])
+                    this.tempMapArrays[this.layer][realY * 16 + realX] = (tool == 'pen') ? tilesetIndex : 0;
+                    console.log(realY, realX, this.tempMapArrays[this.layer][realY * 16 + realX])
                 }
             }
             else if (tool == 'square') {
                 let realX = Math.max(Math.min(tileX - 9, 15), 0); // 맵 영역의 실제 x좌표
                 let realY = Math.max(Math.min(tileY, 15), 0);// 맵 영역의 실제 x좌표
 
-                this.tempMapArray = mapArray.map((value, index) => value);
+                this.tempMapArrays[this.layer] = mapArray.map((value, index) => value);
                 let maxI = Math.max(lastClickedRealX, realX);
                 let minI = Math.min(lastClickedRealX, realX);
                 let maxJ = Math.max(lastClickedRealY, realY);
                 let minJ = Math.min(lastClickedRealY, realY);
                 for (let i = minI; i <= maxI; i++) {
                     for (let j = minJ; j <= maxJ; j++) {
-                        this.tempMapArray[j * 16 + i] = tilesetIndex;
+                        this.tempMapArrays[this.layer][j * 16 + i] = tilesetIndex;
                     }
                 }
             } else if (tool == 'circle') {
                 let realX = Math.max(Math.min(tileX - 9, 15), 0); // 맵 영역의 실제 x좌표
                 let realY = Math.max(Math.min(tileY, 15), 0);// 맵 영역의 실제 x좌표
-                this.tempMapArray = mapArray.map((value, index) => value);
+                this.tempMapArrays[this.layer] = mapArray.map((value, index) => value);
                 let maxI = Math.max(lastClickedRealX, realX);
                 let minI = Math.min(lastClickedRealX, realX);
                 let maxJ = Math.max(lastClickedRealY, realY);
@@ -278,40 +330,41 @@ class TilemapEditor {
                         let x = i - long_radius;
                         let y = j - short_radius;
                         if (x ** 2 * long_radius ** 2 + y ** 2 * short_radius ** 2 <= long_radius ** 2 * short_radius ** 2) {
-                            this.tempMapArray[j * 16 + i] = tilesetIndex;
+                            this.tempMapArrays[this.layer][j * 16 + i] = tilesetIndex;
                         }
                     }
                 }
             } else if (tool == 'fill') {
-                this.tempMapArray = mapArray.map((value, index) => value);
+                this.tempMapArrays[this.layer] = mapArray.map((value, index) => value);
                 let fillArray = [];
-                let fillIndex = this.tempMapArray[realY * 16 + realX];
+                let fillIndex = this.tempMapArrays[realY * 16 + realX];
                 if (fillIndex == tilesetIndex) {
                     return;
                 }
                 fillArray.push([realX, realY]);
                 while (fillArray.length > 0) {
                     let [x, y] = fillArray.pop();
-                    if (this.tempMapArray[y * 16 + x] == fillIndex) {
-                        this.tempMapArray[y * 16 + x] = tilesetIndex;
-                        if (x > 0 && this.tempMapArray[y * 16 + x - 1] == fillIndex) {
+                    if (this.tempMapArrays[this.layer][y * 16 + x] == fillIndex) {
+                        this.tempMapArrays[this.layer][y * 16 + x] = tilesetIndex;
+                        if (x > 0 && this.tempMapArrays[this.layer][y * 16 + x - 1] == fillIndex) {
                             fillArray.push([x - 1, y]);
                         }
-                        if (x < 15 && this.tempMapArray[y * 16 + x + 1] == fillIndex) {
+                        if (x < 15 && this.tempMapArrays[this.layer][y * 16 + x + 1] == fillIndex) {
                             fillArray.push([x + 1, y]);
                         }
-                        if (y > 0 && this.tempMapArray[(y - 1) * 16 + x] == fillIndex) {
+                        if (y > 0 && this.tempMapArrays[this.layer][(y - 1) * 16 + x] == fillIndex) {
                             fillArray.push([x, y - 1]);
                         }
-                        if (y < 15 && this.tempMapArray[(y + 1) * 16 + x] == fillIndex) {
+                        if (y < 15 && this.tempMapArrays[this.layer][(y + 1) * 16 + x] == fillIndex) {
                             fillArray.push([x, y + 1]);
                         }
                     }
                 }
             }
-            this.updateTilemap(this.tempMapArray);
+            this.updateTilemaps(this.tempMapArrays);
         }
     }
+
     mouseDownEvent = (e) => {
         let canvas = document.getElementById('pixi-canvas') // canvas 엘리먼트
         if (e.button === 0 && canvas && this._tileCursorSprite) { // 좌클릭이면서 캔버스가 있으면서 타일커서스프라이트
@@ -342,16 +395,16 @@ class TilemapEditor {
             let tileY = this.tileY;
             if (true) {
                 this.pressed = false;
-                this.mapArray = this.tempMapArray;
+                this.mapArrays = this.tempMapArrays;
             } 
             if (this.isMapArea(tileX, tileY)) {
-                this.updateTilemap(this.mapArray)
+                this.updateTilemaps(this.mapArrays)
             }
         }
     }
 
-    updateTilemap = function(mapArray) {
-        this._tilemapSprite.clear()
+    updateTilemap = function(mapArray, tilemapSprite) {
+        tilemapSprite.clear()
         for (let j = 0; j < 16; j++) {
             for (let i = 0; i < 16; i++) {
                 let index = j * 16 + i;
@@ -360,14 +413,57 @@ class TilemapEditor {
                     let tileset_xpos = ((mapArray[index] - 1) % 8) * 32;
                     let tileset_ypos = Math.floor((mapArray[index] - 1) / 8) * 32;
 
-                    this._tilemapSprite.tile(this._tilemapSprite.tileset, i * 32, j * 32, {
+                    tilemapSprite.tile(tilemapSprite.tileset, i * 32, j * 32, {
                         u: tileset_xpos, v: tileset_ypos, tileWidth: 32, tileHeight: 32
                     });
                 } else {
-                    this._tilemapSprite.tile(this._tilemapSprite.emptytile, i * 32, j * 32);
+                    tilemapSprite.tile(tilemapSprite.emptytile, i * 32, j * 32);
                 }
             }
         }
+    }
+
+    updateTilemaps = function(mapArrays) {
+        for (let i = 0; i < mapArrays.length; i++) {
+            this.updateTilemap(mapArrays[i], this.tilemapSprites[i]);
+        }
+    }
+
+    updateTilemapView(mode) {
+        console.log(this.tilemapSprites)
+        console.log(PIXI.filters.AlphaFilter)
+        
+        switch(mode) {
+            case 'one':
+                this.tilemapSprites[0].alpha = 1;
+                this.tilemapSprites[1].alpha = 0.3;
+                this.tilemapSprites[2].alpha = 0.3;
+                break;
+            case 'two':
+                this.tilemapSprites[0].alpha = 0.3;
+                this.tilemapSprites[1].alpha = 1;
+                this.tilemapSprites[2].alpha = 0.3;
+                break;
+            case 'three':
+                this.tilemapSprites[0].alpha = 0.3;
+                this.tilemapSprites[1].alpha = 0.3;
+                this.tilemapSprites[2].aAlpha = 1;
+                break;
+            case 'free':
+            case 'event':
+                this.tilemapSprites[0].alpha = 1;
+                this.tilemapSprites[1].alpha = 1;
+                this.tilemapSprites[2].alpha = 1;
+                break;
+
+        }
+        this.tilemapSprites[0].alpha = 1;
+        this.tilemapSprites[1].alpha = 0.3;
+        this.tilemapSprites[2].alpha = 0.3;
+        if (this.tilemapSprites[2].children?.[0]?.alpha);
+            this.tilemapSprites[2].children[0].alpha = 0.3;
+            
+        
     }
 }
 
@@ -514,7 +610,7 @@ function DrawButtons() {
 
     const handleTool = (event, newTool) => {
         setTool(newTool);
-        window.button_tool = newTool;
+        window?.tilemapEditor?.setTool?.(newTool);
     };
 
     return (
@@ -562,7 +658,8 @@ function DrawLayerButtons() {
 
     const handleLayer = (event, newTool) => {
         setLayer(newTool);
-        window.layer_tool = newTool;
+        window?.tilemapEditor?.setLayer?.(newTool);
+        window.tilemapEditor.updateTilemapView(newTool);
     };
 
     return (
